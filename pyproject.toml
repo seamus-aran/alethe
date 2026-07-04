@@ -17,6 +17,9 @@ keywords = [
     "lakehouse",
     "delta lake",
     "iceberg",
+    "data lineage",
+    "time travel",
+    "data quality",
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -24,10 +27,19 @@ classifiers = [
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
-dependencies = [
-    "deltalake>=1.0",
-    "pyiceberg>=0.7",
-    "pyarrow>=14.0",
-    "pandas>=2.0",
-    "sqlalchemy>=2.0",
-]
+dependencies = []
+
+[project.optional-dependencies]
+delta   = ["deltalake>=1.0", "pyarrow>=14.0"]
+iceberg = ["pyiceberg>=0.7", "pyarrow>=14.0", "sqlalchemy>=2.0"]
+all     = ["deltalake>=1.0", "pyiceberg>=0.7", "pyarrow>=14.0",
+           "pandas>=2.0", "sqlalchemy>=2.0"]
+
+[project.urls]
+Homepage   = "https://github.com/seamus-aran/alethe"
+Repository = "https://github.com/seamus-aran/alethe"
+DOI        = "https://doi.org/10.5281/zenodo.21193962"
+
+[tool.setuptools.packages.find]
+where   = ["."]
+include = ["alethe*"]
