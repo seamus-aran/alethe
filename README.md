@@ -4,6 +4,22 @@ Reference implementation of the **Observability Watermark Specification (OWS v0.
 
 The unit of adoption is the spec, not this tool. Alethe exists to prove the spec is implementable across real, heterogeneous infrastructure.
 
+## Abstract
+
+Modern data platforms support point-in-time (PIT) queries over historical
+state, but silently lose the ability to answer them as retention policies
+destroy history. No current system distinguishes "this fact was absent at
+time T" from "the evidence needed to answer this question no longer
+exists." This specification defines the **observability watermark**: a
+provable, per-chain statement of how far back in time a data asset can be
+honestly queried, together with the evidence that justifies the claim. It
+further defines how watermarks compose across lineage, how queries over
+watermarked assets produce **verdicts** (exact, bounded, or refused), and
+the integrity requirements that make those verdicts usable as audit
+evidence.
+
+The unit of adoption is this specification, not any implementation.
+
 ## Setup
 
 Python 3.11+ required.
