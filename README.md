@@ -84,6 +84,18 @@ python scripts/ows_delta_oracle.py
 python scripts/ows_manifest_and_iceberg.py
 ```
 
+## Running dbt as of a point in time
+
+Copy [`dbt_macros/alethe_pit.sql`](dbt_macros/alethe_pit.sql) into your dbt project's `macros/` directory, then:
+
+```bash
+dbt run -s revenue_summary --vars '{"alethe_as_of": "2024-03-01"}'
+```
+
+With the var unset, compilation is byte-identical to stock dbt. With it set, the shimmed `source()` appends engine-native time travel (`TIMESTAMP AS OF` on Spark/Databricks, `FOR TIMESTAMP AS OF` on Trino), and `ref()` of a **snapshot** wraps it in a `dbt_valid_from`/`dbt_valid_to` validity subquery — snapshots keep history in rows, so time-travelling the snapshot table itself would be a category error.
+
+Gate it in CI with the PIT report first: the macro binds the query but cannot know whether the target time is CERTAIN, BOUNDED, or UNACHIEVABLE — that's `DbtLineage.pit_report()`'s job. The library-side equivalent (with zone gating built in) is `DbtLineage.rewrite_model()`.
+
 ## Files
 
 | Path | What it is |
