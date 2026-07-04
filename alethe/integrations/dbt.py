@@ -163,6 +163,7 @@ class DbtLineage:
         *,
         watermarks: dict[str, Watermark] | None = None,
         resolver: Callable[[dict], Watermark] | None = None,
+        run_results_path: str | Path | None = None,
     ) -> PitReport:
         """Build a PIT achievability report for a downstream dbt model.
 
@@ -173,11 +174,16 @@ class DbtLineage:
         model_name:
             Short model name or full unique_id.
         watermarks:
-            Dict mapping source ``unique_id`` → ``Watermark``.  Use this
-            when you have pre-computed watermarks.
+            Dict mapping leaf node ``unique_id`` → ``Watermark``.
         resolver:
-            Callable that receives a source node dict and returns a
-            ``Watermark``.  Use this for on-the-fly computation.
+            Callable that receives a leaf node dict and returns a
+            ``Watermark``.
+        run_results_path:
+            Path to ``target/run_results.json``.  When supplied, the last
+            successful execution time for the model is extracted and used
+            as ``materialization_dt`` for the twice-temporal correction
+            (spec §6).  Without this, materialization conformance cannot
+            be checked and the report will note the gap.
         """
         if (watermarks is None) == (resolver is None):
             raise ValueError("Supply exactly one of `watermarks` or `resolver`.")
@@ -192,6 +198,24 @@ class DbtLineage:
         missing: list[str] = []
         for src in sources:
             uid = src["unique_id"]
+            # dbt snapshots: check whether the strategy preserves true PIT.
+            # timestamp-strategy snapshots track row history faithfully;
+            # check-strategy snapshots only record the current state on change
+            # and cannot reconstruct intermediate states — they are NOT true
+            # PIT captures and should be treated as BOUNDED at best.
+            if src.get("resource_type") == "snapshot":
+                strategy = (src.get("config", {}).get("strategy")
+                            or src.get("config", {}).get("snapshot_meta_column_names", {})
+                            or "unknown")
+                if strategy not in ("timestamp", "unknown"):
+                    import warnings
+                    warnings.warn(
+                        f"Snapshot '{src['name']}' uses strategy '{strategy}'. "
+                        "Only 'timestamp' strategy preserves a true PIT capture; "
+                        "'check' strategy records current-state diffs and cannot "
+                        "reconstruct intermediate states. Treat as BOUNDED.",
+                        stacklevel=2,
+                    )
             if watermarks is not None:
                 if uid not in watermarks:
                     missing.append(uid)
@@ -202,12 +226,41 @@ class DbtLineage:
 
         if missing:
             raise ValueError(
-                f"Missing watermarks for sources: {missing}. "
+                f"Missing watermarks for leaf nodes: {missing}. "
                 "Add them to the `watermarks` dict or use a `resolver`.")
 
-        return _pit_report(model_name, wms)
+        materialization_dt = (
+            self._last_execution(model_name, run_results_path)
+            if run_results_path is not None else None
+        )
+        return _pit_report(model_name, wms, materialization_dt=materialization_dt)
 
     # ------------------------------------------------------------------
+
+    def _last_execution(self, model_name: str,
+                        run_results_path: str | Path) -> "None | object":
+        """Return the last successful execute-phase completion time for
+        ``model_name`` from ``run_results.json``, or None if not found."""
+        from datetime import datetime
+        raw = json.loads(Path(run_results_path).read_text())
+        uid = self._resolve(model_name)
+        best: datetime | None = None
+        for result in raw.get("results", []):
+            if result.get("unique_id") != uid:
+                continue
+            if result.get("status") not in ("success", "pass"):
+                continue
+            for timing in result.get("timing", []):
+                if timing.get("name") != "execute":
+                    continue
+                completed = timing.get("completed_at")
+                if not completed:
+                    continue
+                dt = datetime.fromisoformat(
+                    completed.replace("Z", "+00:00"))
+                if best is None or dt > best:
+                    best = dt
+        return best
 
     def _resolve(self, name: str) -> str:
         """Accept a short name or full unique_id; return unique_id."""

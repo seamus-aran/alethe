@@ -81,6 +81,19 @@ class PitReport:
     limiting_chain: str               # chain that imposed the effective_boundary
     effective_grade: "EvidenceGrade"  # weakest grade on the path
     zones: list[PitZone]
+    materialization_dt: datetime | None = None  # from dbt run_results.json
+
+    @property
+    def materialization_conformant(self) -> bool | None:
+        """True iff the model was materialized while upstream data was within
+        retention.  None when materialization time is unknown.
+
+        False means the model was built from data that was already partially
+        vacuumed — a spec §6 twice-temporal conformance failure.
+        """
+        if self.materialization_dt is None:
+            return None
+        return self.materialization_dt >= self.effective_boundary
 
     def query(self, since: datetime) -> PitZone:
         """Return the achievability zone for a query reaching back to `since`."""
@@ -108,9 +121,18 @@ class PitReport:
             f"Effective boundary:  {str(self.effective_boundary)[:19]}  "
             f"(limiting: {self.limiting_chain})",
             f"Effective grade:     {self.effective_grade}",
-            "",
-            "PIT zones:",
         ]
+        if self.materialization_dt is not None:
+            conformant = self.materialization_conformant
+            status = "CONFORMANT" if conformant else "NON-CONFORMANT ⚠"
+            lines.append(
+                f"Materialization:     {str(self.materialization_dt)[:19]}  "
+                f"[twice-temporal: {status}]")
+            if not conformant:
+                lines.append(
+                    "  !! Model was materialized before the upstream retention "
+                    "boundary. Results may embed vacuumed data. (spec §6)")
+        lines += ["", "PIT zones:"]
         for z in self.zones:
             start = str(z.start)[:19] if z.start else "−∞"
             end = str(z.end)[:19] if z.end else "now"

@@ -15,6 +15,8 @@
 """Weakest-link composition and PIT achievability reporting (spec §4, §6)."""
 
 from __future__ import annotations
+from datetime import datetime
+
 from ._models import (
     EvidenceGrade,
     PitReport,
@@ -37,7 +39,8 @@ def _weaker(a: EvidenceGrade, b: EvidenceGrade) -> EvidenceGrade:
     return a if _GRADE_ORDER.index(a) >= _GRADE_ORDER.index(b) else b
 
 
-def pit_report(name: str, upstreams: list[Watermark]) -> PitReport:
+def pit_report(name: str, upstreams: list[Watermark],
+               materialization_dt: datetime | None = None) -> PitReport:
     """Build a PIT achievability report using weakest-link composition.
 
     Three zones (spec §4 weakest-link + §9 unknown-population):
@@ -112,4 +115,5 @@ def pit_report(name: str, upstreams: list[Watermark]) -> PitReport:
         limiting_chain=limiting_wm.chain,
         effective_grade=effective_grade,
         zones=zones,
+        materialization_dt=materialization_dt,
     )
