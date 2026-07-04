@@ -12,19 +12,26 @@
 # implied. See the License for the specific language governing
 # permissions and limitations under the License.
 
-"""alethe CLI — CI gate for point-in-time achievability.
+"""alethe CLI — PIT availability reporting and CI gating.
 
 Usage:
 
+    # Gate a specific point-in-time query (CI):
     alethe check \\
         --dbt-manifest target/manifest.json \\
         --model revenue_summary \\
         --as-of 2024-03-01 \\
         --watermarks watermarks.jsonl \\
         [--run-results target/run_results.json] \\
-        [--allow-bounded]
+        [--allow-bounded] [--record]
 
-Exit codes:
+    # PIT availability report — all models, or one:
+    alethe report \\
+        --dbt-manifest target/manifest.json \\
+        --watermarks watermarks.jsonl \\
+        [--model revenue_summary] [--run-results ...] [--record]
+
+`check` exit codes:
     0  CERTAIN (or BOUNDED with --allow-bounded)
     1  BOUNDED without --allow-bounded
     2  UNACHIEVABLE
@@ -110,6 +117,62 @@ def check(argv: list[str]) -> int:
     return 2
 
 
+def report(argv: list[str]) -> int:
+    p = argparse.ArgumentParser(
+        prog="alethe report",
+        description="PIT availability report — every model (or one) with "
+                    "its zones, limiting chains, and evidence grade.")
+    p.add_argument("--dbt-manifest", required=True,
+                   help="Path to dbt target/manifest.json")
+    p.add_argument("--watermarks", required=True,
+                   help="Recorded alethe manifest (JSONL, local or s3://)")
+    p.add_argument("--model", default=None,
+                   help="Single model (name or unique_id); default: all models")
+    p.add_argument("--run-results", default=None,
+                   help="dbt run_results.json for the twice-temporal check")
+    p.add_argument("--record", action="store_true",
+                   help="Append each report to the watermark manifest as a "
+                        "materialization-snapshot entry")
+    args = p.parse_args(argv)
+
+    from . import load_watermarks, record_report
+    from .integrations.dbt import DbtLineage
+
+    try:
+        chains = load_watermarks(args.watermarks)
+        lineage = DbtLineage(args.dbt_manifest)
+    except (ValueError, FileNotFoundError) as e:
+        print(f"alethe: error: {e}", file=sys.stderr)
+        return 3
+
+    models = [args.model] if args.model else sorted(lineage.models())
+    shown = skipped = 0
+    for model in models:
+        try:
+            wms = lineage.resolve_watermarks(model, chains)
+            rep = lineage.pit_report(model, watermarks=wms,
+                                     run_results_path=args.run_results)
+        except (ValueError, KeyError) as e:
+            if args.model:  # explicit request — surface the error
+                print(f"alethe: error: {e}", file=sys.stderr)
+                return 3
+            skipped += 1
+            print(f"·· {model}: skipped ({str(e).splitlines()[0][:80]})\n")
+            continue
+        print(rep)
+        if args.record:
+            entry = record_report(rep, args.watermarks)
+            print(f"recorded materialization-snapshot: seq={entry['seq']} "
+                  f"hash={entry['hash']}")
+        print()
+        shown += 1
+
+    if not args.model:
+        print(f"{shown} model(s) reported, {skipped} skipped "
+              "(no resolvable upstream watermarks).")
+    return 0 if shown else 3
+
+
 def main() -> None:
     argv = sys.argv[1:]
     if not argv or argv[0] in ("-h", "--help"):
@@ -117,7 +180,10 @@ def main() -> None:
         sys.exit(0)
     if argv[0] == "check":
         sys.exit(check(argv[1:]))
-    print(f"alethe: unknown command {argv[0]!r} (try: alethe check --help)",
+    if argv[0] == "report":
+        sys.exit(report(argv[1:]))
+    print(f"alethe: unknown command {argv[0]!r} "
+          "(try: alethe check --help, alethe report --help)",
           file=sys.stderr)
     sys.exit(3)
 

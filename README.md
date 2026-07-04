@@ -152,7 +152,13 @@ alethe check \
   --run-results target/run_results.json
 ```
 
-Exit codes: `0` CERTAIN · `1` BOUNDED (pass `--allow-bounded` to accept lower bounds) · `2` UNACHIEVABLE · `3` resolution error. The full PIT report is printed either way, including the twice-temporal materialization check.
+Exit codes: `0` CERTAIN · `1` BOUNDED (pass `--allow-bounded` to accept lower bounds) · `2` UNACHIEVABLE · `3` resolution error. The full PIT report is printed either way, including the twice-temporal materialization check. Add `--record` to land the verdict in the manifest as a `materialization-snapshot` entry.
+
+For a standalone availability report — every model in the project (or one with `--model`), no `--as-of` needed:
+
+```bash
+alethe report --dbt-manifest target/manifest.json --watermarks watermarks.jsonl
+```
 
 ### Airflow: refresh watermarks and publish lineage
 

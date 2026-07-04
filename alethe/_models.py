@@ -115,12 +115,12 @@ class PitReport:
             marker = " ← limiting" if wm.chain == self.limiting_chain else ""
             lines.append(
                 f"  {wm.chain:<34} {str(wm.boundary_dt)[:19]:<24} "
-                f"{wm.evidence_grade}{marker}")
+                f"{wm.evidence_grade.value}{marker}")
         lines += [
             sep,
             f"Effective boundary:  {str(self.effective_boundary)[:19]}  "
             f"(limiting: {self.limiting_chain})",
-            f"Effective grade:     {self.effective_grade}",
+            f"Effective grade:     {self.effective_grade.value}",
         ]
         if self.materialization_dt is not None:
             conformant = self.materialization_conformant
