@@ -290,8 +290,22 @@ class DbtLineage:
             model_name, watermarks=watermarks, resolver=resolver,
             run_results_path=run_results_path)
 
-        tracked = [self._relation_name(leaf)
-                   for leaf in self.upstream_leaves(model_name)]
+        # Split leaves by temporal mechanism: physical tables get storage
+        # time travel; snapshots get SCD2 validity predicates — their
+        # history lives in rows, and time-travelling the snapshot table
+        # would answer "what did the snapshot look like at t", not "what
+        # was the source state at t".
+        tracked: list[str] = []
+        scd2: dict[str, tuple[str, str]] = {}
+        for leaf in self.upstream_leaves(model_name):
+            rel = self._relation_name(leaf)
+            if leaf.get("resource_type") == "snapshot":
+                meta = leaf.get("config", {}).get(
+                    "snapshot_meta_column_names", {}) or {}
+                scd2[rel] = (meta.get("dbt_valid_from", "dbt_valid_from"),
+                             meta.get("dbt_valid_to", "dbt_valid_to"))
+            else:
+                tracked.append(rel)
 
         if compiled_sql is None:
             assert compiled_path is not None  # guaranteed by the XOR check
@@ -310,7 +324,8 @@ class DbtLineage:
             compiled_sql = sql_file.read_text()
 
         return rewrite_pit(compiled_sql, since, tracked,
-                           dialect=dialect, report=report)
+                           dialect=dialect, report=report,
+                           scd2_tables=scd2 or None)
 
     @staticmethod
     def _relation_name(node: dict) -> str:

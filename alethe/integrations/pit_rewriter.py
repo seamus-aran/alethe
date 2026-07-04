@@ -67,8 +67,21 @@ def rewrite_pit(
     *,
     dialect: str = "spark",
     report: PitReport | None = None,
+    scd2_tables: dict[str, tuple[str, str]] | None = None,
 ) -> RewriteResult:
     """Bind every reference to a tracked table to ``since``.
+
+    Two binding mechanisms, chosen per table:
+
+    - **Storage time travel** (default): the engine-native
+      ``TIMESTAMP AS OF`` clause.  Correct for physical Delta/Iceberg
+      tables whose history lives in storage versions.
+    - **SCD2 predicates** (``scd2_tables``): a row-space validity filter
+      ``valid_from <= t AND (valid_to > t OR valid_to IS NULL)``.
+      Correct for dbt snapshots and snapshot-style fact tables, whose
+      history lives in *rows*.  Time-travelling such a table would answer
+      "what did the snapshot table look like at t" — not "what was the
+      source state at t" — which is a silent category error.
 
     Parameters
     ----------
@@ -87,6 +100,11 @@ def rewrite_pit(
         Optional PIT report for the model.  When given, a ``since`` in
         the UNACHIEVABLE zone raises :class:`UnachievableQueryError`,
         and a ``since`` in the BOUNDED zone attaches a warning.
+    scd2_tables:
+        Tables to bind with SCD2 validity predicates instead of time
+        travel, mapping table identifier → ``(valid_from_column,
+        valid_to_column)``.  dbt snapshots use
+        ``("dbt_valid_from", "dbt_valid_to")``.
 
     Returns
     -------
@@ -120,11 +138,19 @@ def rewrite_pit(
     cte_names = {cte.alias_or_name for cte in tree.find_all(exp.CTE)}
 
     tracked_parts = [tuple(t.lower().split(".")) for t in tracked_tables]
+    scd2_parts = {tuple(t.lower().split(".")): cols
+                  for t, cols in (scd2_tables or {}).items()}
 
     ts_literal = exp.Cast(
         this=exp.Literal.string(since.strftime("%Y-%m-%d %H:%M:%S")),
         to=exp.DataType.build("timestamp"),
     )
+
+    def _match(lowered: tuple[str, ...], parts_list) -> tuple | None:
+        for t in parts_list:
+            if len(t) <= len(lowered) and lowered[-len(t):] == t:
+                return t
+        return None
 
     bound: list[str] = []
     for table in tree.find_all(exp.Table):
@@ -135,17 +161,53 @@ def rewrite_pit(
         if len(name_parts) == 1 and name_parts[0] in cte_names:
             continue  # CTE reference, not a physical table
         lowered = tuple(p.lower() for p in name_parts)
-        if not any(lowered[-len(t):] == t for t in tracked_parts
-                   if len(t) <= len(lowered)):
+
+        scd2_key = _match(lowered, scd2_parts)
+        if scd2_key is not None:
+            # Row-space binding: AND a validity-window predicate onto the
+            # enclosing SELECT, qualified by the table's alias.
+            vf_col, vt_col = scd2_parts[scd2_key]
+            alias = table.alias_or_name
+            vf = exp.column(vf_col, table=alias)
+            vt = exp.column(vt_col, table=alias)
+            predicate = exp.and_(
+                exp.LTE(this=vf, expression=ts_literal.copy()),
+                exp.paren(exp.or_(
+                    exp.GT(this=vt, expression=ts_literal.copy()),
+                    exp.Is(this=vt.copy(), expression=exp.Null()),
+                )),
+            )
+            select = table.find_ancestor(exp.Select)
+            if select is None:
+                warnings.append(
+                    f"SCD2 table {'.'.join(name_parts)} is not inside a "
+                    "SELECT; validity predicate not applied.")
+                continue
+            join = table.find_ancestor(exp.Join)
+            if join is not None and join.side in ("LEFT", "RIGHT", "FULL"):
+                warnings.append(
+                    f"SCD2 table {'.'.join(name_parts)} is the inner side "
+                    f"of a {join.side} JOIN; the validity predicate was "
+                    "placed in WHERE, which filters out non-matching rows "
+                    "(outer-join semantics become inner). Move the "
+                    "predicate into the ON clause if outer semantics "
+                    "are required.")
+            select.where(predicate, copy=False)
+            bound.append(".".join(name_parts) + " (scd2)")
+            continue
+
+        if _match(lowered, tracked_parts) is None:
             continue
         table.set("version", exp.Version(
             this="TIMESTAMP", expression=ts_literal.copy(), kind="AS OF"))
         bound.append(".".join(name_parts))
 
-    matched = {tuple(t.lower().split(".")) for t in tracked_tables
-               if any(tuple(p.lower() for p in b.split("."))[-len(t.split(".")):]
-                      == tuple(t.lower().split(".")) for b in bound)}
-    unmatched = [t for t in tracked_tables
+    all_tracked = list(tracked_tables) + list((scd2_tables or {}).keys())
+    matched = {tuple(t.lower().split(".")) for t in all_tracked
+               if any(_match(
+                   tuple(p.lower() for p in b.replace(" (scd2)", "").split(".")),
+                   [tuple(t.lower().split("."))]) for b in bound)}
+    unmatched = [t for t in all_tracked
                  if tuple(t.lower().split(".")) not in matched]
     if unmatched:
         warnings.append(
