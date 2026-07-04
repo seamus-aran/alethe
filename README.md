@@ -20,6 +20,29 @@ evidence.
 
 The unit of adoption is this specification, not any implementation.
 
+## The observability semiring
+
+Alethe's query semantics are built on a three-valued semiring
+`K = {ABSENT, BEYOND, OBSERVED}`:
+
+```
+OBSERVED  ─── fact is present and inside retention  (multiplicative identity)
+   │
+BEYOND    ─── query exceeds the retention boundary; honest refusal
+   │
+ABSENT    ─── fact is definitively not present      (additive identity)
+```
+
+Two operations compose annotations through relational algebra:
+
+| ⊕ `(union)` | **ABSENT** | **BEYOND** | **OBSERVED** |   | ⊗ `(join)` | **ABSENT** | **BEYOND** | **OBSERVED** |
+|---|---|---|---|---|---|---|---|---|
+| **ABSENT**   | ABSENT  | BEYOND   | OBSERVED |   | **ABSENT**   | ABSENT | ABSENT | ABSENT   |
+| **BEYOND**   | BEYOND  | BEYOND   | OBSERVED |   | **BEYOND**   | ABSENT | BEYOND | BEYOND   |
+| **OBSERVED** | OBSERVED| OBSERVED | OBSERVED |   | **OBSERVED** | ABSENT | BEYOND | OBSERVED |
+
+**Intuition:** `⊕` is max — if any derivation path is OBSERVED, the row is observed. `⊗` is min — a join is only as knowable as its least knowable conjunct. `BEYOND` taint enters at a vacuumed source and propagates through every downstream join and projection by algebra alone, with no special-case logic in the query engine.
+
 ## Setup
 
 Python 3.11+ required.
