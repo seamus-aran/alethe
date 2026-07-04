@@ -14,5 +14,14 @@
 
 from .dbt import DbtLineage
 from .openlineage import to_facet, to_run_event, from_facet
+from .pit_rewriter import RewriteResult, UnachievableQueryError, rewrite_pit
 
-__all__ = ["DbtLineage", "to_facet", "to_run_event", "from_facet"]
+__all__ = [
+    "DbtLineage",
+    "to_facet",
+    "to_run_event",
+    "from_facet",
+    "rewrite_pit",
+    "RewriteResult",
+    "UnachievableQueryError",
+]

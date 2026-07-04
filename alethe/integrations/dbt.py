@@ -236,6 +236,98 @@ class DbtLineage:
         return _pit_report(model_name, wms, materialization_dt=materialization_dt)
 
     # ------------------------------------------------------------------
+    # PIT query rewriting
+
+    def rewrite_model(
+        self,
+        model_name: str,
+        since: "object",
+        *,
+        watermarks: dict[str, Watermark] | None = None,
+        resolver: Callable[[dict], Watermark] | None = None,
+        compiled_sql: str | None = None,
+        compiled_path: str | Path | None = None,
+        dialect: str = "spark",
+        run_results_path: str | Path | None = None,
+    ):
+        """Rewrite a model's compiled SQL so every tracked source is bound
+        to ``since`` with the engine's native time-travel syntax.
+
+        The model's PIT report gates the rewrite: a ``since`` in the
+        UNACHIEVABLE zone raises
+        :class:`~alethe.integrations.pit_rewriter.UnachievableQueryError`;
+        a ``since`` in the BOUNDED zone succeeds with a warning attached.
+
+        Parameters
+        ----------
+        model_name:
+            Short model name or full unique_id.
+        since:
+            Timezone-aware ``datetime`` to bind the query to.
+        watermarks / resolver / run_results_path:
+            As in :meth:`pit_report`.
+        compiled_sql:
+            The model's compiled SQL (Jinja already rendered).  Supply
+            this OR ``compiled_path``.
+        compiled_path:
+            Root of ``target/compiled/<project>``; the model's ``.sql``
+            file is located by its manifest ``path``.
+        dialect:
+            sqlglot dialect for parsing and rendering (``"spark"``,
+            ``"trino"``, ``"bigquery"``, ...).
+
+        Returns
+        -------
+        :class:`~alethe.integrations.pit_rewriter.RewriteResult`
+        """
+        from .pit_rewriter import rewrite_pit
+
+        if (compiled_sql is None) == (compiled_path is None):
+            raise ValueError(
+                "Supply exactly one of `compiled_sql` or `compiled_path`.")
+
+        report = self.pit_report(
+            model_name, watermarks=watermarks, resolver=resolver,
+            run_results_path=run_results_path)
+
+        tracked = [self._relation_name(leaf)
+                   for leaf in self.upstream_leaves(model_name)]
+
+        if compiled_sql is None:
+            assert compiled_path is not None  # guaranteed by the XOR check
+            uid = self._resolve(model_name)
+            node = self._nodes[uid]
+            rel_path = node.get("path") or node.get("original_file_path")
+            if not rel_path:
+                raise ValueError(
+                    f"Manifest node for '{model_name}' has no path; "
+                    "pass compiled_sql directly.")
+            sql_file = Path(compiled_path) / rel_path
+            if not sql_file.exists():
+                raise FileNotFoundError(
+                    f"Compiled SQL not found at {sql_file}. Run `dbt compile` "
+                    "and check compiled_path points at target/compiled/<project>.")
+            compiled_sql = sql_file.read_text()
+
+        return rewrite_pit(compiled_sql, since, tracked,
+                           dialect=dialect, report=report)
+
+    @staticmethod
+    def _relation_name(node: dict) -> str:
+        """Best-effort physical relation name for a manifest node.
+
+        Prefers the manifest's own ``relation_name`` (present in newer
+        schema versions, already quoted/qualified), falling back to
+        ``database.schema.name`` parts.
+        """
+        rel = node.get("relation_name")
+        if rel:
+            return rel.replace('"', "").replace("`", "")
+        parts = [node.get("database"), node.get("schema"),
+                 node.get("name")]
+        return ".".join(p for p in parts if p)
+
+    # ------------------------------------------------------------------
 
     def _last_execution(self, model_name: str,
                         run_results_path: str | Path) -> "None | object":

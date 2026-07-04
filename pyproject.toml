@@ -33,8 +33,10 @@ dependencies = []
 delta   = ["deltalake>=1.0", "pyarrow>=14.0"]
 iceberg = ["pyiceberg>=0.7", "pyarrow>=14.0", "sqlalchemy>=2.0"]
 s3      = ["boto3>=1.34"]
+rewrite = ["sqlglot>=25.0"]
 all     = ["deltalake>=1.0", "pyiceberg>=0.7", "pyarrow>=14.0",
-           "pandas>=2.0", "sqlalchemy>=2.0", "boto3>=1.34"]
+           "pandas>=2.0", "sqlalchemy>=2.0", "boto3>=1.34",
+           "sqlglot>=25.0"]
 
 [project.urls]
 Homepage   = "https://github.com/seamus-aran/alethe"
