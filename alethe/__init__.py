@@ -40,20 +40,28 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from ._models import EvidenceGrade, Verdict, VerdictStatus, Watermark
+from ._models import (
+    EvidenceGrade, Verdict, VerdictStatus, Watermark,
+    PitReport, PitStatus, PitZone,
+)
 from ._manifest import Manifest
 from ._semiring import K, KRelation, QueryResult, TemporalTable, split_result, verify_semiring_laws
+from ._lineage import pit_report
 
 __all__ = [
     # top-level functions
     "watermark",
     "record",
     "verdict",
+    "pit_report",
     # models
     "Watermark",
     "EvidenceGrade",
     "Verdict",
     "VerdictStatus",
+    "PitReport",
+    "PitStatus",
+    "PitZone",
     # manifest
     "Manifest",
     # semiring

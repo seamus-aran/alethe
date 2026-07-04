@@ -61,6 +61,8 @@ class IcebergAdapter:
 
         boundary_dt = datetime.fromtimestamp(
             candidate.timestamp_ms / 1000, tz=timezone.utc)
+        earliest_dt = datetime.fromtimestamp(
+            snapshots[0].timestamp_ms / 1000, tz=timezone.utc)
 
         return Watermark(
             chain=f"iceberg://{table_name}",
@@ -70,6 +72,7 @@ class IcebergAdapter:
                 "timestamp_ms": candidate.timestamp_ms,
             },
             boundary_dt=boundary_dt,
+            earliest_dt=earliest_dt,
             evidence_grade=EvidenceGrade.DERIVED,
             empirically_validated=validated,
             readable_islands=islands,

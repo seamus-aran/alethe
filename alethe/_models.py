@@ -37,6 +37,7 @@ class Watermark:
     chain: str
     boundary: dict
     boundary_dt: datetime
+    earliest_dt: datetime           # oldest known position (table creation / first snapshot)
     evidence_grade: EvidenceGrade
     empirically_validated: bool
     proof: dict
@@ -54,3 +55,65 @@ class Verdict:
     def __repr__(self) -> str:
         links = f", limiting={self.limiting_links}" if self.limiting_links else ""
         return f"Verdict({self.status.value}{links})"
+
+
+class PitStatus(str, Enum):
+    CERTAIN = "CERTAIN"           # since >= effective_boundary: fully retained
+    BOUNDED = "BOUNDED"           # earliest_dt <= since < effective_boundary: retained with gaps
+    UNACHIEVABLE = "UNACHIEVABLE" # since < earliest_dt: table didn't exist yet
+
+
+@dataclass
+class PitZone:
+    status: PitStatus
+    start: datetime | None        # None = beginning of time
+    end: datetime | None          # None = open (now / future)
+    limiting_chains: list[str]
+
+
+@dataclass
+class PitReport:
+    """Point-in-time achievability report for a (downstream) model."""
+    name: str
+    upstreams: list["Watermark"]
+    effective_boundary: datetime      # weakest-link: max(boundary_dt)
+    earliest_dt: datetime             # max(earliest_dt) — latest start across upstreams
+    limiting_chain: str               # chain that imposed the effective_boundary
+    effective_grade: "EvidenceGrade"  # weakest grade on the path
+    zones: list[PitZone]
+
+    def query(self, since: datetime) -> PitZone:
+        """Return the achievability zone for a query reaching back to `since`."""
+        for zone in self.zones:
+            start_ok = zone.start is None or since >= zone.start
+            end_ok = zone.end is None or since < zone.end
+            if start_ok and end_ok:
+                return zone
+        return self.zones[-1]  # UNACHIEVABLE is always last
+
+    def __str__(self) -> str:
+        sep = "─" * 56
+        lines = [
+            f"PIT Achievability Report: {self.name}",
+            sep,
+            f"{'Upstream chain':<36} {'Boundary':<24} Grade",
+        ]
+        for wm in self.upstreams:
+            marker = " ← limiting" if wm.chain == self.limiting_chain else ""
+            lines.append(
+                f"  {wm.chain:<34} {str(wm.boundary_dt)[:19]:<24} "
+                f"{wm.evidence_grade}{marker}")
+        lines += [
+            sep,
+            f"Effective boundary:  {str(self.effective_boundary)[:19]}  "
+            f"(limiting: {self.limiting_chain})",
+            f"Effective grade:     {self.effective_grade}",
+            "",
+            "PIT zones:",
+        ]
+        for z in self.zones:
+            start = str(z.start)[:19] if z.start else "−∞"
+            end = str(z.end)[:19] if z.end else "now"
+            note = f"  limiting: {z.limiting_chains}" if z.limiting_chains else ""
+            lines.append(f"  {z.status.value:<14} {start} → {end}{note}")
+        return "\n".join(lines)

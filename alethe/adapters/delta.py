@@ -46,11 +46,13 @@ class DeltaAdapter:
         corroborated, vac_versions, boundary_by_log = \
             self._vacuum_crosscheck(table, per_version, boundary)
         boundary_dt = self._commit_timestamp(table, boundary)
+        earliest_dt = self._commit_timestamp(table, min(per_version))
 
         return Watermark(
             chain=f"delta://{table.name}",
             boundary={"version": boundary},
             boundary_dt=boundary_dt,
+            earliest_dt=earliest_dt,
             evidence_grade=EvidenceGrade.DERIVED,
             empirically_validated=validated,
             proof={
