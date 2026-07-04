@@ -53,6 +53,7 @@ __all__ = [
     # top-level functions
     "watermark",
     "record",
+    "load_watermarks",
     "verdict",
     "pit_report",
     # integrations
@@ -117,17 +118,58 @@ def record(wm: Watermark, manifest: str | Path) -> dict:
 
     The manifest is created if it does not exist. Returns the new entry.
     """
-    m = Manifest(Path(manifest))
+    m = Manifest(manifest)
     return m.append(
         "watermark",
         chain=wm.chain,
         boundary=wm.boundary,
+        boundary_dt=wm.boundary_dt.isoformat(),
+        earliest_dt=wm.earliest_dt.isoformat(),
         evidence_grade=wm.evidence_grade,
         empirically_validated=wm.empirically_validated,
         proof=wm.proof,
         claim_recorded_at=wm.claim_recorded_at.isoformat(),
         readable_islands=wm.readable_islands,
     )
+
+
+def load_watermarks(manifest: str | Path) -> dict[str, Watermark]:
+    """Load the latest watermark per chain from a recorded manifest.
+
+    Verifies the hash chain first; a tampered manifest raises rather than
+    yielding claims that can no longer be trusted.
+
+    Returns
+    -------
+    dict mapping ``chain`` → its most recent ``Watermark``.  Watermarks
+    are monotone (spec §4), so the latest entry per chain is the current
+    claim.
+    """
+    m = Manifest(manifest)
+    if not m.verify():
+        raise ValueError(
+            f"Manifest {manifest} failed hash-chain verification — "
+            "entries have been edited or reordered. Refusing to load.")
+    out: dict[str, Watermark] = {}
+    for e in m.entries:
+        if e.get("kind") != "watermark":
+            continue
+        if "boundary_dt" not in e:
+            raise ValueError(
+                f"Manifest entry seq={e.get('seq')} predates boundary_dt "
+                "persistence — re-record it with alethe >= 0.1.0.")
+        out[e["chain"]] = Watermark(
+            chain=e["chain"],
+            boundary=e["boundary"],
+            boundary_dt=datetime.fromisoformat(e["boundary_dt"]),
+            earliest_dt=datetime.fromisoformat(e["earliest_dt"]),
+            evidence_grade=EvidenceGrade(e["evidence_grade"]),
+            empirically_validated=e.get("empirically_validated", False),
+            proof=e.get("proof", {}),
+            claim_recorded_at=datetime.fromisoformat(e["claim_recorded_at"]),
+            readable_islands=e.get("readable_islands", []),
+        )
+    return out
 
 
 def verdict(wm: Watermark, since: datetime) -> Verdict:

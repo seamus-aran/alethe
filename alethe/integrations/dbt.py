@@ -236,6 +236,65 @@ class DbtLineage:
         return _pit_report(model_name, wms, materialization_dt=materialization_dt)
 
     # ------------------------------------------------------------------
+    # Watermark resolution from a recorded alethe manifest
+
+    def resolve_watermarks(
+        self,
+        model_name: str,
+        chains: dict[str, Watermark],
+    ) -> dict[str, Watermark]:
+        """Map the model's upstream leaves to watermarks loaded from a
+        recorded manifest (see :func:`alethe.load_watermarks`).
+
+        Resolution order per leaf node:
+
+        1. Explicit: ``meta.alethe.chain`` in the source's schema.yml —
+
+           .. code-block:: yaml
+
+               sources:
+                 - name: raw
+                   tables:
+                     - name: orders
+                       meta:
+                         alethe:
+                           chain: delta://orders
+
+        2. Fallback: a chain whose name part equals the node name
+           (``delta://orders`` matches a source named ``orders``) —
+           used only when exactly one chain matches.
+
+        Raises ``ValueError`` listing any unresolved leaves.
+        """
+        resolved: dict[str, Watermark] = {}
+        unresolved: list[str] = []
+        for leaf in self.upstream_leaves(model_name):
+            uid = leaf["unique_id"]
+            explicit = (leaf.get("meta") or {}).get("alethe", {}).get("chain")
+            if explicit:
+                if explicit not in chains:
+                    raise ValueError(
+                        f"{uid} declares meta.alethe.chain={explicit!r} but "
+                        f"that chain is not in the manifest. Available: "
+                        f"{sorted(chains)}")
+                resolved[uid] = chains[explicit]
+                continue
+            candidates = [c for c in chains
+                          if c.split("://", 1)[-1].split(".")[-1]
+                          == leaf.get("name")]
+            if len(candidates) == 1:
+                resolved[uid] = chains[candidates[0]]
+            else:
+                unresolved.append(uid)
+        if unresolved:
+            raise ValueError(
+                f"Cannot resolve chains for: {unresolved}. Add "
+                "meta.alethe.chain to these sources in schema.yml, or "
+                "record watermarks whose chain name matches the source "
+                f"name. Available chains: {sorted(chains)}")
+        return resolved
+
+    # ------------------------------------------------------------------
     # PIT query rewriting
 
     def rewrite_model(

@@ -37,6 +37,9 @@ all     = ["deltalake>=1.0", "pyiceberg>=0.7", "pyarrow>=14.0",
            "pandas>=2.0", "sqlalchemy>=2.0", "boto3>=1.34",
            "sqlglot>=25.0"]
 
+[project.scripts]
+alethe = "alethe._cli:main"
+
 [project.urls]
 Homepage   = "https://github.com/seamus-aran/alethe"
 Repository = "https://github.com/seamus-aran/alethe"
