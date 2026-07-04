@@ -47,6 +47,7 @@ from ._models import (
 from ._manifest import Manifest
 from ._semiring import K, KRelation, QueryResult, TemporalTable, split_result, verify_semiring_laws
 from ._lineage import pit_report
+from . import integrations
 
 __all__ = [
     # top-level functions
@@ -54,6 +55,8 @@ __all__ = [
     "record",
     "verdict",
     "pit_report",
+    # integrations
+    "integrations",
     # models
     "Watermark",
     "EvidenceGrade",
