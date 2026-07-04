@@ -59,19 +59,18 @@ pip install -r requirements.txt
 
 ```bash
 pip install jupyter
-jupyter notebook alethe.ipynb
+jupyter notebook notebooks/alethe_quickstart.ipynb   # two-minute API tour
+jupyter notebook notebooks/alethe_integrations.ipynb # dbt + OpenLineage end-to-end
+jupyter notebook notebooks/alethe.ipynb              # full exploratory walkthrough
 ```
 
-The notebook walks through four stages in order:
-
-| Stage | What it proves |
+| Notebook | What it covers |
 |---|---|
-| 0 — Algebraic foundation | Three-valued semiring `K = {ABSENT, BEYOND, OBSERVED}`. 126 semiring laws verified exhaustively. `BEYOND` taint propagates through joins by algebra alone. |
-| 1 — Simulation grade | Oracle, tamper-evident manifest, contradicted watermark, and verdict engine against simulated infrastructure. |
-| 2 — Real Delta Lake | Real Delta table, real `VACUUM`, real time-travel reads. Proves the `_delta_log` advertises versions that are physically unreadable after vacuum. |
-| 3 — Manifest + Iceberg | Delta boundary cross-checked via two independent derivations, then the same contract against a real Iceberg table. One contract, two formats, one ledger. |
+| `notebooks/alethe_quickstart.ipynb` | Semiring algebra, Delta watermark, Iceberg watermark, PIT achievability report |
+| `notebooks/alethe_integrations.ipynb` | Real tables → dbt manifest DAG → twice-temporal correction → OpenLineage emission + roundtrip |
+| `notebooks/alethe.ipynb` | Deep-dive: all four implementation phases with intermediate outputs |
 
-Phases 2 and 3 write to `./lakehouse/` and `./iceberg_warehouse/` — both are safe to delete and will be recreated on re-run.
+All notebooks write to `./lakehouse/` and `./iceberg_warehouse/` — safe to delete, recreated on re-run.
 
 ### Scripts directly
 
@@ -86,16 +85,14 @@ python scripts/ows_manifest_and_iceberg.py
 
 ## Files
 
-| File | What it proves |
+| Path | What it is |
 |---|---|
-| `alethe.ipynb` | Full exploratory notebook — all four stages with intermediate outputs |
-| `scripts/obs_semiring.py` | K-relations with exhaustive semiring-law verification |
-| `scripts/ows_examples.py` | Four simulation-grade reference scenarios |
-| `scripts/ows_delta_oracle.py` | Real Delta table, real VACUUM, two-phase oracle |
-| `scripts/ows_manifest_and_iceberg.py` | Manifest integration + real Iceberg adapter |
-| `ows-spec-draft.md` | The specification (v0.1.0-draft) — the normative document |
-| `alethe-value-proposition.md` | Positioning, compatibility matrix, steelmanned objections |
-| `ows_manifest.jsonl` | Persisted manifest written by Phase 3 |
+| `alethe/` | Installable Python package — `pip install -e ".[all]"` |
+| `notebooks/` | Jupyter notebooks (quickstart, integrations, full exploration) |
+| `scripts/` | Standalone phase scripts (original reference runs) |
+| `markdown/ows-spec-draft.md` | The specification (v0.1.0-draft) — the normative document |
+| `markdown/alethe-value-proposition.md` | Positioning, compatibility matrix, steelmanned objections |
+| `ows_manifest.jsonl` | Persisted manifest written by the full exploration notebook |
 
 ## License & Attribution
 

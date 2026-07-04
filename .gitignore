@@ -1,5 +1,5 @@
 lakehouse/
-iceberg_warehouse/
+iceberg_warehouse*/
 __pycache__/
 *.pyc
 .venv/
@@ -7,3 +7,4 @@ dist/
 build/
 *.egg-info/
 .DS_Store
+qs_manifest.jsonl
