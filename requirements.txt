@@ -1,0 +1,5 @@
+deltalake>=1.0
+pyiceberg>=0.7
+pyarrow>=14.0
+pandas>=2.0
+sqlalchemy>=2.0

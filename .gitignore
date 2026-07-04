@@ -1,0 +1,9 @@
+lakehouse/
+iceberg_warehouse/
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
+*.egg-info/
+.DS_Store

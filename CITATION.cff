@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this specification, please cite it."
+type: report
+title: "Observability Watermark Specification (OWS)"
+authors:
+  - family-names: "Cooper"
+    given-names: "Caelan"
+doi: "10.5281/zenodo.21193962"
+date-released: "2026-07-04"
+license: "CC-BY-4.0"
+repository-code: "https://github.com/seamus-aran/alethe"
+keywords:
+  - observability watermark
+  - temporal queries
+  - data retention
+  - lakehouse
+  - provenance semirings
+  - evidence grade
+  - contradicted watermark
+  - readable islands
+  - BOUNDED verdict
+  - twice-temporal correction
