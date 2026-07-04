@@ -58,19 +58,20 @@ pip install -r requirements.txt
 ### Notebook (recommended)
 
 ```bash
-pip install jupyter
-jupyter notebook notebooks/alethe_quickstart.ipynb   # two-minute API tour
-jupyter notebook notebooks/alethe_integrations.ipynb # dbt + OpenLineage end-to-end
-jupyter notebook notebooks/alethe.ipynb              # full exploratory walkthrough
+pip install -e ".[all]" jupyter
+jupyter notebook notebooks/
 ```
+
+The notebooks are numbered in order of progression:
 
 | Notebook | What it covers |
 |---|---|
-| `notebooks/alethe_quickstart.ipynb` | Semiring algebra, Delta watermark, Iceberg watermark, PIT achievability report |
-| `notebooks/alethe_integrations.ipynb` | Real tables → dbt manifest DAG → twice-temporal correction → OpenLineage emission + roundtrip |
-| `notebooks/alethe.ipynb` | Deep-dive: all four implementation phases with intermediate outputs |
+| `00_idea_testing.ipynb` | The original exploration: all four implementation phases with intermediate outputs |
+| `01_library_quickstart.ipynb` | The `alethe` API: semiring algebra, Delta + Iceberg watermarks, PIT achievability report |
+| `02_dbt_openlineage.ipynb` | dbt manifest DAG → twice-temporal correction → OpenLineage emission + roundtrip |
+| `03_end_to_end.ipynb` | **The full story**: a dbt project on Delta + Iceberg → watermarks → PIT report → zone-gated time-travel query rewriting → empirical proof |
 
-All notebooks write to `./lakehouse/` and `./iceberg_warehouse/` — safe to delete, recreated on re-run.
+All notebooks write their tables under the working directory — safe to delete, recreated on re-run.
 
 ### Scripts directly
 

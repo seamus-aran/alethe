@@ -8,3 +8,10 @@ build/
 *.egg-info/
 .DS_Store
 qs_manifest.jsonl
+notebooks/e2e_workspace/
+notebooks/lakehouse/
+notebooks/iceberg_warehouse*/
+notebooks/qs_manifest.jsonl
+notebooks/int_manifest.json
+notebooks/int_run_results.json
+notebooks/ows_manifest.jsonl
