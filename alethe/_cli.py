@@ -61,9 +61,12 @@ def check(argv: list[str]) -> int:
                    help="dbt run_results.json for the twice-temporal check")
     p.add_argument("--allow-bounded", action="store_true",
                    help="Exit 0 for BOUNDED (monotone aggregates only)")
+    p.add_argument("--record", action="store_true",
+                   help="Append this report to the watermark manifest as a "
+                        "materialization-snapshot entry (spec §4)")
     args = p.parse_args(argv)
 
-    from . import load_watermarks
+    from . import load_watermarks, record_report
     from ._models import PitStatus
     from .integrations.dbt import DbtLineage
 
@@ -81,6 +84,11 @@ def check(argv: list[str]) -> int:
 
     print(report)
     print()
+
+    if args.record:
+        entry = record_report(report, args.watermarks, as_of=as_of)
+        print(f"recorded materialization-snapshot: seq={entry['seq']} "
+              f"hash={entry['hash']}")
 
     if report.materialization_conformant is False:
         print("⚠  twice-temporal NON-CONFORMANT: the model was materialized "

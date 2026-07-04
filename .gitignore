@@ -15,3 +15,5 @@ notebooks/qs_manifest.jsonl
 notebooks/int_manifest.json
 notebooks/int_run_results.json
 notebooks/ows_manifest.jsonl
+notebooks/dbt_pit_workspace/
+notebooks/reconstruct_workspace/

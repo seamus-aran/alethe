@@ -110,6 +110,8 @@ Numbered in order of progression:
 | [`01_library_quickstart`](notebooks/01_library_quickstart.ipynb) | The `alethe` API: semiring algebra, Delta + Iceberg watermarks, PIT achievability report |
 | [`02_dbt_openlineage`](notebooks/02_dbt_openlineage.ipynb) | dbt manifest DAG → twice-temporal correction → OpenLineage emission + roundtrip |
 | [`03_end_to_end`](notebooks/03_end_to_end.ipynb) | **The full story**: a dbt project on Delta + Iceberg → watermarks → PIT report → zone-gated query rewriting → empirical proof |
+| [`04_dbt_pit_runs`](notebooks/04_dbt_pit_runs.ipynb) | A real dbt project (dbt-duckdb) with the macro shim: `dbt run --vars alethe_as_of`, snapshot vs source binding |
+| [`05_airflow_reconstruction`](notebooks/05_airflow_reconstruction.ipynb) | Gated backfills: the naive failure, then skip / clamp+stamp / exact per zone — plus the production DAG |
 
 All notebooks write their tables under the working directory — safe to delete, recreated on re-run.
 

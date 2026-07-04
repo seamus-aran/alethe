@@ -53,6 +53,7 @@ __all__ = [
     # top-level functions
     "watermark",
     "record",
+    "record_report",
     "load_watermarks",
     "verdict",
     "pit_report",
@@ -170,6 +171,52 @@ def load_watermarks(manifest: str | Path) -> dict[str, Watermark]:
             readable_islands=e.get("readable_islands", []),
         )
     return out
+
+
+def record_report(report: "PitReport", manifest: str | Path,
+                  as_of: datetime | None = None) -> dict:
+    """Persist a PIT report as a ``materialization-snapshot`` manifest entry.
+
+    This is the spec §4 write-time evidence snapshot: the report's zones,
+    effective boundary, and grade are committed to the hash chain at the
+    moment they were computed.  Even if upstream tables are vacuumed
+    further tomorrow, this entry proves what was knowable — and with what
+    evidence — when the model was built or the check was run.
+
+    Parameters
+    ----------
+    report:
+        The PIT report to persist.
+    manifest:
+        Path (local or ``s3://``) of the hash-chained manifest.
+    as_of:
+        Optional query time this report was evaluated against (e.g. the
+        CI ``--as-of`` or the backfill logical date).  When given, the
+        zone verdict at that time is stored alongside the report.
+    """
+    m = Manifest(manifest)
+    payload: dict = {
+        "model": report.name,
+        "effective_boundary": report.effective_boundary.isoformat(),
+        "earliest_dt": report.earliest_dt.isoformat(),
+        "limiting_chain": report.limiting_chain,
+        "effective_grade": report.effective_grade,
+        "upstream_chains": [wm.chain for wm in report.upstreams],
+        "zones": [
+            {"status": z.status.value,
+             "start": z.start.isoformat() if z.start else None,
+             "end": z.end.isoformat() if z.end else None,
+             "limiting_chains": z.limiting_chains}
+            for z in report.zones
+        ],
+    }
+    if report.materialization_dt is not None:
+        payload["materialization_dt"] = report.materialization_dt.isoformat()
+        payload["materialization_conformant"] = report.materialization_conformant
+    if as_of is not None:
+        payload["as_of"] = as_of.isoformat()
+        payload["verdict_at_as_of"] = report.query(as_of).status.value
+    return m.append("materialization-snapshot", **payload)
 
 
 def verdict(wm: Watermark, since: datetime) -> Verdict:

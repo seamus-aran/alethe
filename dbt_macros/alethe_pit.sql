@@ -31,15 +31,19 @@
 
 {% macro alethe_as_of_clause() %}
     {%- set as_of = var('alethe_as_of', none) -%}
+    {# alethe_as_of_style overrides adapter detection — useful for custom
+       adapters or engines that speak another engine's dialect #}
+    {%- set style = var('alethe_as_of_style', target.type) -%}
     {%- if as_of is none -%}
-    {%- elif target.type in ('spark', 'databricks') -%}
+    {%- elif style in ('spark', 'databricks') -%}
         {{ return(" TIMESTAMP AS OF '" ~ as_of ~ "'") }}
-    {%- elif target.type in ('trino', 'presto', 'athena') -%}
+    {%- elif style in ('trino', 'presto', 'athena') -%}
         {{ return(" FOR TIMESTAMP AS OF TIMESTAMP '" ~ as_of ~ "'") }}
     {%- else -%}
         {{ exceptions.raise_compiler_error(
-            "alethe_as_of is set but adapter '" ~ target.type ~
-            "' has no time-travel syntax registered in alethe_pit.sql") }}
+            "alethe_as_of is set but style '" ~ style ~
+            "' has no time-travel syntax registered in alethe_pit.sql. "
+            "Set alethe_as_of_style to 'spark' or 'trino'.") }}
     {%- endif -%}
 {% endmacro %}
 
