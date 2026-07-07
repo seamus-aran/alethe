@@ -47,6 +47,7 @@ from ._models import (
 from ._manifest import Manifest
 from ._semiring import K, KRelation, QueryResult, TemporalTable, split_result, verify_semiring_laws
 from ._lineage import pit_report
+from ._asof import AsOfResult, asof
 from . import integrations
 
 __all__ = [
@@ -57,6 +58,8 @@ __all__ = [
     "load_watermarks",
     "verdict",
     "pit_report",
+    "asof",
+    "AsOfResult",
     # integrations
     "integrations",
     # models

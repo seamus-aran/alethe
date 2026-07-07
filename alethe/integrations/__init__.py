@@ -15,6 +15,7 @@
 from .dbt import DbtLineage
 from .openlineage import to_facet, to_run_event, from_facet
 from .pit_rewriter import RewriteResult, UnachievableQueryError, rewrite_pit
+from .bi import epistemic_view_sql, lower_bound_sql
 
 __all__ = [
     "DbtLineage",
@@ -24,4 +25,6 @@ __all__ = [
     "rewrite_pit",
     "RewriteResult",
     "UnachievableQueryError",
+    "epistemic_view_sql",
+    "lower_bound_sql",
 ]
