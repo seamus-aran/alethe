@@ -17,3 +17,4 @@ notebooks/int_run_results.json
 notebooks/ows_manifest.jsonl
 notebooks/dbt_pit_workspace/
 notebooks/reconstruct_workspace/
+.venv-airflow/
