@@ -1,0 +1,7 @@
+pit_poc:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../data/pit_poc.duckdb
+      threads: 1

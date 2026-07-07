@@ -1,0 +1,31 @@
+name: pit_poc
+version: '1.0'
+profile: pit_poc
+model-paths: ["models"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+seed-paths: ["seeds"]
+
+flags:
+  send_anonymous_usage_stats: false
+
+# Unquoted relations so compiled SQL parses cleanly as Spark/Trino for the
+# alethe PIT rewriter (sqlglot's hive-family dialects read double quotes as
+# string literals, not identifiers). DuckDB accepts the unquoted names.
+quoting:
+  database: false
+  schema: false
+  identifier: false
+
+models:
+  pit_poc:
+    # Staging is EPHEMERAL by design: the staging SQL is inlined into the
+    # fact/dim layer's compiled SQL, so the physical leaves — the Delta and
+    # Iceberg source tables and the SCD2 snapshot — appear verbatim in the
+    # compiled query text. That is exactly what point-in-time binding needs:
+    # alethe's rewriter (and the macro shim) can only bind relations that
+    # actually appear in the SQL.
+    staging:
+      +materialized: ephemeral
+    marts:
+      +materialized: table

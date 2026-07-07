@@ -1,0 +1,66 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: orders
+        description: >
+          Mirror of the CURRENT state of the REAL Delta table at
+          ../data/lakehouse/orders. The Delta table is the system of record
+          for history; duckdb only sees the latest version because duckdb has
+          no native Delta time travel. The alethe chain below ties this source
+          to its real Delta history, so PIT reports and rewrites know how far
+          back the table can honestly be queried.
+        meta:
+          alethe:
+            chain: delta://orders
+      - name: returns
+        description: >
+          Mirror of the CURRENT state of the REAL Apache Iceberg table
+          raw.returns in the SqlCatalog warehouse at ../data/iceberg_warehouse.
+          As with orders, duckdb mirrors the latest snapshot; the watermark —
+          including the suffix boundary and any readable islands below it —
+          is derived from the real Iceberg metadata and data files.
+        meta:
+          alethe:
+            chain: iceberg://raw.returns
+      - name: customers
+        description: >
+          Mutable dimension table (segment changes, new customers). History is
+          preserved by the dbt snapshot `customers_snapshot` (SCD2 rows), NOT
+          by storage time travel — which is exactly the point of scenario S6:
+          the parallel Delta mirror of this table gets vacuumed and loses
+          states that the snapshot still reconstructs.
+
+models:
+  - name: stg_orders
+    description: >
+      Staging over the watermarked Delta-backed source raw.orders.
+      Ephemeral: inlined into downstream compiled SQL so the physical source
+      relation is visible to PIT binding.
+  - name: stg_returns
+    description: >
+      Staging over the watermarked Iceberg-backed source raw.returns.
+      Ephemeral, same rationale as stg_orders.
+  - name: stg_customers
+    description: >
+      History-preserving staging: reads the SCD2 snapshot, not the mutable
+      raw.customers table. History lives in rows (dbt_valid_from /
+      dbt_valid_to), so it survives VACUUM on the lakehouse side.
+  - name: fct_orders
+    description: >
+      Fact: one row per order with any matched return and net revenue.
+      Upstream leaves: delta://orders and iceberg://raw.returns — its
+      effective PIT watermark is the weakest link of the two chains.
+  - name: dim_customer
+    description: >
+      Type-2 customer dimension carrying the FULL SCD2 history from the
+      snapshot (is_current flags the live row). Deliberately unfiltered so a
+      PIT rewrite can select the row valid at any covered time.
+  - name: revenue_by_segment
+    description: >
+      Mart on the fact/dim layer: net revenue per customer segment per day.
+      Its effective watermark composes ALL upstream leaves (delta://orders,
+      iceberg://raw.returns, snapshot://customers_snapshot); the youngest
+      chain limits it (weakest-link).

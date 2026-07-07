@@ -1,0 +1,35 @@
+# Generated data — rebuilt by executing poc_dbt_history.ipynb
+data/
+*.duckdb
+*.duckdb.wal
+
+# Delta lakehouse artifacts (in case they land outside data/)
+lakehouse/
+_delta_log/
+
+# Iceberg warehouse artifacts (in case they land outside data/)
+iceberg_warehouse/
+*.metadata.json
+catalog.db
+
+# alethe watermark manifests are generated per run
+watermarks.jsonl
+
+# dbt build artifacts
+project/target/
+project/logs/
+project/dbt_packages/
+project/.user.yml
+logs/
+
+# Python / Jupyter cruft
+__pycache__/
+.ipynb_checkpoints/
+.write_probe
+
+# Tracked deliverables (explicit, for clarity):
+#   poc_dbt_history.ipynb, README.md, poc_support.py, img/*.png,
+#   project/ source files
+!poc_dbt_history.ipynb
+!README.md
+!img/*.png
