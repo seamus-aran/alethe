@@ -1,5 +1,6 @@
 # Alethe
 
+[![ci](https://github.com/seamus-aran/alethe/actions/workflows/ci.yml/badge.svg)](https://github.com/seamus-aran/alethe/actions/workflows/ci.yml)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21193962.svg)](https://doi.org/10.5281/zenodo.21193962)
 
 Reference implementation of the **Observability Watermark Specification (OWS v0.1.0-draft)**. From the Greek *aletheia* — truth as un-forgetting.
@@ -32,7 +33,7 @@ watermarked assets produce **verdicts** (exact, bounded, or refused), and
 the integrity requirements that make those verdicts usable as audit
 evidence.
 
-The unit of adoption is the specification ([`markdown/ows-spec-draft.md`](markdown/ows-spec-draft.md)), not any implementation. Alethe exists to prove the spec is implementable across real, heterogeneous infrastructure.
+The unit of adoption is the specification ([`docs/ows-spec-draft.md`](docs/ows-spec-draft.md)), not any implementation. Alethe exists to prove the spec is implementable across real, heterogeneous infrastructure.
 
 ## The observability semiring
 
@@ -191,14 +192,16 @@ Downstream consumers reconstruct watermarks from the OpenLineage facets alone (`
 | `alethe/integrations/` | dbt, OpenLineage, and the PIT SQL rewriter |
 | `dbt_macros/alethe_pit.sql` | Drop-in dbt macro shim for `--vars alethe_as_of` |
 | `notebooks/` | Executable notebooks, numbered by progression |
-| `scripts/` | Standalone phase scripts (original reference runs) |
-| `markdown/ows-spec-draft.md` | **The specification (v0.1.0-draft) — the normative document** |
-| `markdown/alethe-value-proposition.md` | Positioning, compatibility matrix, steelmanned objections |
+| `poc/` | Proof-of-concepts against real dbt + Airflow across deep table history |
+| `tests/` | pytest suite — semiring laws through `asof()` against real vacuumed tables |
+| `scripts/` | Phase-1 reference scripts, superseded by the package; kept as evidence |
+| `docs/ows-spec-draft.md` | **The specification (v0.1.0-draft) — the normative document** |
+| `docs/alethe-value-proposition.md` | Positioning, compatibility matrix, steelmanned objections |
 
 ## License & Attribution
 
 - **Code:** Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
-- **Specification text** (`markdown/ows-spec-draft.md`): CC-BY 4.0 — attribution required per the spec header.
+- **Specification text** (`docs/ows-spec-draft.md`): CC-BY 4.0 — attribution required per the spec header.
 - **Trademarks & conformance claims:** see [TRADEMARK.md](TRADEMARK.md).
 - **Citing this work:** DOI [10.5281/zenodo.21193962](https://doi.org/10.5281/zenodo.21193962) or GitHub's "Cite this repository" button (from `CITATION.cff`).
 

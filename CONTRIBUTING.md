@@ -1,5 +1,17 @@
 # Contributing to Alethe
 
+## Development setup
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[all]" pytest
+pytest
+```
+
+The tests build real Delta tables and destroy history with a real VACUUM
+— empirical validation is the conformance requirement, so please keep new
+tests empirical too (no metadata-arithmetic-only assertions).
+
 ## Developer Certificate of Origin
 
 Contributions require a DCO sign-off certifying you have the right to

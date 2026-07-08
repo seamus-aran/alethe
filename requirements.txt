@@ -1,3 +1,0 @@
-# Dependencies are declared once, in pyproject.toml (see [project.optional-dependencies]).
-# This file exists only as a convenience for `pip install -r requirements.txt`:
--e .[all]

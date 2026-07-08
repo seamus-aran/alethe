@@ -85,34 +85,39 @@ via named attestation ("sign for the exception," never "disable the gate").
 
 Conformance levels (cumulative): **OWS-Core** → **OWS-Verdict** → **OWS-Lineage**.
 
-## Files
+## Repository layout
 
-| File | What it proves |
+| Path | What it is |
 |---|---|
-| `ows_delta_oracle.py` | Real Delta table (delta-rs), real VACUUM. Two-phase oracle: metadata replay of `_delta_log` + empirical time-travel validation. Demonstrates the log listing versions that are physically unreadable. |
-| `ows_manifest_and_iceberg.py` | Delta boundary cross-checked via two independent derivations (file existence vs VACUUM commits). Plus a real Iceberg adapter (pyiceberg + sqlite catalog) proving the *same contract* across a second metadata model. One contract, two formats, one ledger. |
-| `obs_semiring.py` | K-relations with exhaustive semiring-law verification. `TemporalTable.as_of()` with retention watermarks. Demo of `BEYOND` taint flowing through joins and surviving projection. |
-| `ows_examples.py` | Four simulation-grade reference scenarios: oracle, manifest tamper detection, contradicted-watermark heartbeat, verdict engine (incl. escrow + twice-temporal). |
-| `ows-spec-draft.md` | The specification itself (v0.1.0-draft). The normative document. |
-| `alethe-value-proposition.md` | Positioning, target compatibility matrix, steelmanned objections. |
-| `ows_manifest.jsonl` | Persisted manifest: two validated watermark entries (Delta v7; Iceberg suffix boundary with 3 readable islands). |
+| `alethe/` | The installable library. Core: `_models` (Watermark, verdicts, zones, `parse_dt`, `UnachievableQueryError`), `_manifest` (hash-chained JSONL, local + s3://), `_semiring` (K-relations, law verification), `_lineage` (weakest-link PIT reports), `_asof` (`alethe.asof()` gated time-travel queries), `_cli` (`alethe check` / `alethe report`). |
+| `alethe/adapters/` | `delta.py`, `iceberg.py` — per-format watermark oracles (derive + empirically validate + proof). |
+| `alethe/integrations/` | `dbt.py` (manifest lineage, PIT reports, model rewriting), `pit_rewriter.py` (sqlglot time-travel/SCD2 injection), `openlineage.py` (watermark facets), `bi.py` (epistemic view SQL). |
+| `dbt_macros/alethe_pit.sql` | Jinja shim for `dbt run --vars '{alethe_as_of: ...}'`. A byte-identical copy lives in `poc/dbt/project/macros/` (drift-guarded by a test). |
+| `docs/ows-spec-draft.md` | **The specification (v0.1.0-draft) — the normative document.** |
+| `docs/alethe-value-proposition.md` | Positioning, compatibility matrix, steelmanned objections. |
+| `notebooks/00–06` | Numbered progression from idea-testing to BOUNDED-query presentation. All executed clean; workspaces they create are gitignored. |
+| `poc/dbt/`, `poc/airflow/` | Empirical proof-of-concepts against real dbt + Airflow across deep table history (source → staging → fact/dim). |
+| `tests/` | pytest suite: semiring laws, manifest tamper detection, zone gating, `asof()` against a real vacuumed Delta table, dbt lineage/rewriting. |
+| `examples/` | Production-shaped Airflow DAGs (gated reconstruction, witness heartbeat). |
+| `scripts/` | Phase-1 reference scripts, superseded by the package; kept as the spec's original evidence (with `ows_manifest.jsonl`, their persisted output). |
 
-**Status**: Phase 1 complete. The oracle + manifest + Iceberg files run against
-*real* infrastructure (not simulation); `ows_examples.py` is simulation-grade
-(real logic, fake infra) covering mechanisms not yet wired to live systems.
+**Status**: v0.1.0 tagged and pushed. Library + CLI + dbt/Airflow/OpenLineage
+integrations run against real Delta and Iceberg infrastructure; POCs and
+notebooks are the executed evidence.
 
-## Runtime
+## Development
 
 ```
-pip install deltalake pyiceberg pyarrow pandas
+python -m venv .venv && .venv/bin/pip install -e ".[all]" pytest
+.venv/bin/pytest
 ```
 
-- `ows_delta_oracle.py` and `ows_manifest_and_iceberg.py` write real tables under
-  `/home/claude/...` in their current form — **adjust these paths** for a local
-  run (they hardcode the sandbox filesystem).
-- `obs_semiring.py` and `ows_examples.py` are pure-Python, no infra deps.
-- Run order for the real pipeline: `ows_delta_oracle.py` first (builds the Delta
-  table the manifest step reads), then `ows_manifest_and_iceberg.py`.
+- Two venvs exist locally: `.venv` (library + dbt + everything) and
+  `.venv-airflow` (Airflow 3.3 pins conflict with dbt — used only by the
+  Airflow POC/notebook).
+- `asof()` currently supports Delta only; Iceberg goes through
+  `watermark(adapter="iceberg")` + `integrations.rewrite_pit()`.
+- Dependencies are declared once, in `pyproject.toml` extras.
 
 ## Positioning
 

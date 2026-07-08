@@ -12,6 +12,11 @@
 # implied. See the License for the specific language governing
 # permissions and limitations under the License.
 
+
+# NOTE: Phase-1 reference implementation, written before the `alethe`
+# package existed. Kept as the spec's original evidence artifact.
+# The maintained equivalent lives in: alethe.adapters.iceberg + alethe.Manifest / notebooks/01
+
 """
 OWS — Manifest integration + second adapter (Iceberg)
 =====================================================
