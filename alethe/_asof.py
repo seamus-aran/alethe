@@ -73,24 +73,22 @@ class AsOfResult:
                 f"{notes}</div>" + self.df.to_html(index=False))
 
 
-def _write_pattern(table: Path) -> str:
-    """'append' if the log contains only appends (no overwrites/deletes
-    after the first write), else 'overwrite'. Decides whether a clamped
-    BOUNDED read is a lower bound or a temporal substitution."""
-    import json as _json
-    ops = []
-    for f in sorted((Path(table) / "_delta_log").glob("*.json")):
-        for line in f.read_text().splitlines():
-            a = _json.loads(line)
-            if "commitInfo" in a and a["commitInfo"].get("operation"):
-                ops.append((a["commitInfo"]["operation"],
-                            a["commitInfo"].get("operationParameters", {})))
-    for op, params in ops:
-        if op == "DELETE":
-            return "append-with-retention-delete"
-        if op == "WRITE" and params.get("mode") not in (None, "Append"):
+def _write_pattern(dt) -> str:
+    """'overwrite' if any commit replaced table state, else 'append'
+    (retention DELETEs keep surviving rows a subset of the true rows, so
+    the lower-bound reading still holds). Decides whether a clamped
+    BOUNDED read is a lower bound or a temporal substitution. Uses the
+    sanctioned ``DeltaTable.history()`` API, never the raw log."""
+    saw_delete = False
+    for commit in dt.history():
+        op = commit.get("operation")
+        params = commit.get("operationParameters") or {}
+        mode = str(params.get("mode") or "").strip('"')
+        if op == "WRITE" and mode not in ("", "Append"):
             return "overwrite"
-    return "append"
+        if op == "DELETE":
+            saw_delete = True
+    return "append-with-retention-delete" if saw_delete else "append"
 
 
 def asof(sql: str, *, tables: dict[str, str | Path],
@@ -127,6 +125,7 @@ def asof(sql: str, *, tables: dict[str, str | Path],
     notes: list[str] = []
     wms: dict[str, Watermark] = {}
     frames: dict[str, object] = {}
+    seen_ts: dict[str, datetime] = {}
     worst = VerdictStatus.EXACT
 
     for tnode in tree.find_all(exp.Table):
@@ -136,13 +135,28 @@ def asof(sql: str, *, tables: dict[str, str | Path],
         version = tnode.args.get("version")
         if version is None:
             continue
-        ts_literal = version.expression.name
-        ts = datetime.fromisoformat(ts_literal)
+        ts = datetime.fromisoformat(version.expression.name)
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc)
+        tnode.set("version", None)          # strip AS OF for local execution
+
+        if name in seen_ts:                 # self-join: gate + load once
+            if ts != seen_ts[name]:
+                raise ValueError(
+                    f"{name!r} is referenced with two different AS OF "
+                    f"timestamps ({seen_ts[name].isoformat()} and "
+                    f"{ts.isoformat()}); one state per table per query.")
+            continue
+        seen_ts[name] = ts
         requested = requested or ts
 
         path = Path(tables[name])
+        if not (path / "_delta_log").exists():
+            raise NotImplementedError(
+                f"asof() currently supports Delta tables only; {name!r} at "
+                f"{path} has no _delta_log/. For Iceberg, derive the "
+                "watermark with alethe.watermark(..., adapter='iceberg') "
+                "and gate with integrations.rewrite_pit().")
         wm = _watermark(path)
         wms[wm.chain] = wm
         zone = pit_report(name, [wm]).query(ts)
@@ -156,8 +170,8 @@ def asof(sql: str, *, tables: dict[str, str | Path],
         dt = DeltaTable(str(path))
         if zone.status == PitStatus.BOUNDED:
             worst = VerdictStatus.BOUNDED
+            pattern = _write_pattern(dt)
             dt.load_as_version(wm.boundary["version"])
-            pattern = _write_pattern(path)
             if pattern.startswith("append"):
                 notes.append(
                     f"{name}: retention destroyed history before "
@@ -176,7 +190,6 @@ def asof(sql: str, *, tables: dict[str, str | Path],
             dt.load_as_version(ts)          # real time travel
 
         frames[name] = dt.to_pyarrow_table()
-        tnode.set("version", None)          # strip AS OF for local execution
 
     if requested is None:
         raise ValueError(
