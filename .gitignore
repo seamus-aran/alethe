@@ -18,3 +18,5 @@ notebooks/ows_manifest.jsonl
 notebooks/dbt_pit_workspace/
 notebooks/reconstruct_workspace/
 .venv-airflow/
+notebooks/bounded_workspace/
+notebooks/img_bounded_bars.png

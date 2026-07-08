@@ -57,7 +57,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from .._models import EvidenceGrade, Watermark
+from .._models import EvidenceGrade, Watermark, parse_dt
 
 _PRODUCER = "https://github.com/seamus-aran/alethe"
 _FACET_KEY = "observabilityWatermark"
@@ -179,18 +179,15 @@ def from_facet(chain: str, facets: dict[str, Any]) -> Watermark:
             f"No '{_FACET_KEY}' facet found. "
             f"Available facets: {list(facets)}")
 
-    def _dt(s: str) -> datetime:
-        return datetime.fromisoformat(s)
-
     return Watermark(
         chain=f.get("chain", chain),
         boundary=f["boundary"],
-        boundary_dt=_dt(f["boundaryTime"]),
-        earliest_dt=_dt(f["earliestTime"]),
+        boundary_dt=parse_dt(f["boundaryTime"]),
+        earliest_dt=parse_dt(f["earliestTime"]),
         evidence_grade=EvidenceGrade(f["evidenceGrade"]),
         empirically_validated=f.get("empiricallyValidated", False),
         proof=f.get("proof", {}),
-        claim_recorded_at=_dt(f["claimRecordedAt"]),
+        claim_recorded_at=parse_dt(f["claimRecordedAt"]),
         readable_islands=f.get("readableIslands", []),
     )
 

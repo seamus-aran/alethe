@@ -41,7 +41,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ._models import (
-    EvidenceGrade, Verdict, VerdictStatus, Watermark,
+    EvidenceGrade, UnachievableQueryError, Verdict, VerdictStatus, Watermark,
     PitReport, PitStatus, PitZone,
 )
 from ._manifest import Manifest
@@ -65,6 +65,7 @@ __all__ = [
     # models
     "Watermark",
     "EvidenceGrade",
+    "UnachievableQueryError",
     "Verdict",
     "VerdictStatus",
     "PitReport",
@@ -117,27 +118,21 @@ def watermark(table: str | Path, *, adapter: str | None = None,
         "Pass adapter='delta' or adapter='iceberg'.")
 
 
-def record(wm: Watermark, manifest: str | Path) -> dict:
+def _as_manifest(manifest: str | Path | Manifest) -> Manifest:
+    """Accept a path or an already-open Manifest (reused across a loop
+    to avoid re-reading the file per append)."""
+    return manifest if isinstance(manifest, Manifest) else Manifest(manifest)
+
+
+def record(wm: Watermark, manifest: str | Path | Manifest) -> dict:
     """Append a watermark entry to a hash-chained JSONL manifest.
 
     The manifest is created if it does not exist. Returns the new entry.
     """
-    m = Manifest(manifest)
-    return m.append(
-        "watermark",
-        chain=wm.chain,
-        boundary=wm.boundary,
-        boundary_dt=wm.boundary_dt.isoformat(),
-        earliest_dt=wm.earliest_dt.isoformat(),
-        evidence_grade=wm.evidence_grade,
-        empirically_validated=wm.empirically_validated,
-        proof=wm.proof,
-        claim_recorded_at=wm.claim_recorded_at.isoformat(),
-        readable_islands=wm.readable_islands,
-    )
+    return _as_manifest(manifest).append("watermark", **wm.to_dict())
 
 
-def load_watermarks(manifest: str | Path) -> dict[str, Watermark]:
+def load_watermarks(manifest: str | Path | Manifest) -> dict[str, Watermark]:
     """Load the latest watermark per chain from a recorded manifest.
 
     Verifies the hash chain first; a tampered manifest raises rather than
@@ -149,7 +144,7 @@ def load_watermarks(manifest: str | Path) -> dict[str, Watermark]:
     are monotone (spec §4), so the latest entry per chain is the current
     claim.
     """
-    m = Manifest(manifest)
+    m = _as_manifest(manifest)
     if not m.verify():
         raise ValueError(
             f"Manifest {manifest} failed hash-chain verification — "
@@ -162,21 +157,11 @@ def load_watermarks(manifest: str | Path) -> dict[str, Watermark]:
             raise ValueError(
                 f"Manifest entry seq={e.get('seq')} predates boundary_dt "
                 "persistence — re-record it with alethe >= 0.1.0.")
-        out[e["chain"]] = Watermark(
-            chain=e["chain"],
-            boundary=e["boundary"],
-            boundary_dt=datetime.fromisoformat(e["boundary_dt"]),
-            earliest_dt=datetime.fromisoformat(e["earliest_dt"]),
-            evidence_grade=EvidenceGrade(e["evidence_grade"]),
-            empirically_validated=e.get("empirically_validated", False),
-            proof=e.get("proof", {}),
-            claim_recorded_at=datetime.fromisoformat(e["claim_recorded_at"]),
-            readable_islands=e.get("readable_islands", []),
-        )
+        out[e["chain"]] = Watermark.from_dict(e)
     return out
 
 
-def record_report(report: "PitReport", manifest: str | Path,
+def record_report(report: "PitReport", manifest: str | Path | Manifest,
                   as_of: datetime | None = None) -> dict:
     """Persist a PIT report as a ``materialization-snapshot`` manifest entry.
 
@@ -191,13 +176,14 @@ def record_report(report: "PitReport", manifest: str | Path,
     report:
         The PIT report to persist.
     manifest:
-        Path (local or ``s3://``) of the hash-chained manifest.
+        Path (local or ``s3://``) of the hash-chained manifest, or an
+        already-open :class:`Manifest`.
     as_of:
         Optional query time this report was evaluated against (e.g. the
         CI ``--as-of`` or the backfill logical date).  When given, the
         zone verdict at that time is stored alongside the report.
     """
-    m = Manifest(manifest)
+    m = _as_manifest(manifest)
     payload: dict = {
         "model": report.name,
         "effective_boundary": report.effective_boundary.isoformat(),
@@ -230,6 +216,10 @@ def verdict(wm: Watermark, since: datetime) -> Verdict:
                   valid lower bounds, but the answer is not complete.
                   Non-monotone queries (NOT EXISTS, MIN/MAX over possibly
                   incomplete sets) should be treated as ``REFUSED``.
+
+    Note: this is a two-state check against a single watermark and does
+    not distinguish UNACHIEVABLE (``since`` before the table existed).
+    For three-zone gating use ``pit_report(name, [wm]).query(since)``.
 
     Parameters
     ----------

@@ -18,6 +18,22 @@ from datetime import datetime, timezone
 from enum import Enum
 
 
+def parse_dt(s: str) -> datetime:
+    """Parse an ISO-8601 timestamp; naive input is taken as UTC.
+
+    The single normalization used everywhere a timestamp enters the
+    library as a string (CLI --as-of, AS OF literals, manifest entries,
+    OpenLineage facets), so no path silently keeps a naive datetime.
+    """
+    dt = datetime.fromisoformat(s)
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+class UnachievableQueryError(Exception):
+    """The requested point in time precedes the existence of at least one
+    upstream source; no honest answer exists (spec §3 refusal)."""
+
+
 class EvidenceGrade(str, Enum):
     DERIVED = "derived"
     DERIVED_COUNTERSIGNED = "derived-countersigned"
@@ -44,6 +60,41 @@ class Watermark:
     claim_recorded_at: datetime = field(
         default_factory=lambda: datetime.now(tz=timezone.utc))
     readable_islands: list[dict] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Serialize to the manifest schema (snake_case, ISO datetimes).
+
+        The single owner of the field list — manifest persistence and any
+        other snake_case serialization must go through here so a new
+        field is added in one place.
+        """
+        return {
+            "chain": self.chain,
+            "boundary": self.boundary,
+            "boundary_dt": self.boundary_dt.isoformat(),
+            "earliest_dt": self.earliest_dt.isoformat(),
+            "evidence_grade": self.evidence_grade,
+            "empirically_validated": self.empirically_validated,
+            "proof": self.proof,
+            "claim_recorded_at": self.claim_recorded_at.isoformat(),
+            "readable_islands": self.readable_islands,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Watermark":
+        """Inverse of :meth:`to_dict`. Tolerates entries recorded by
+        older versions (missing optional fields get safe defaults)."""
+        return cls(
+            chain=d["chain"],
+            boundary=d["boundary"],
+            boundary_dt=parse_dt(d["boundary_dt"]),
+            earliest_dt=parse_dt(d["earliest_dt"]),
+            evidence_grade=EvidenceGrade(d["evidence_grade"]),
+            empirically_validated=d.get("empirically_validated", False),
+            proof=d.get("proof", {}),
+            claim_recorded_at=parse_dt(d["claim_recorded_at"]),
+            readable_islands=d.get("readable_islands", []),
+        )
 
 
 @dataclass

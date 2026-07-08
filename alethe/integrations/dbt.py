@@ -88,6 +88,15 @@ class DbtLineage:
         # Merge nodes and sources into one lookup so DAG traversal is uniform.
         self._nodes: dict[str, dict] = {**raw.get("nodes", {}),
                                          **raw.get("sources", {})}
+        # Indexes/caches for fleet mode (`alethe report` walks every model):
+        # name→uid avoids a linear scan per resolve; the other two avoid
+        # re-walking the DAG / re-parsing run_results.json per model.
+        self._model_uids_by_name: dict[str, list[str]] = {}
+        for uid, n in self._nodes.items():
+            if n.get("resource_type") == "model":
+                self._model_uids_by_name.setdefault(n["name"], []).append(uid)
+        self._leaves_cache: dict[str, list[dict]] = {}
+        self._run_results_cache: dict[str, dict] = {}
 
     # ------------------------------------------------------------------
     # Discovery helpers
@@ -128,6 +137,9 @@ class DbtLineage:
         Snapshot nodes contain ``unique_id``, ``name``, ``config``.
         """
         root = self._resolve(model_name)
+        cached = self._leaves_cache.get(root)
+        if cached is not None:
+            return list(cached)
         visited: set[str] = set()
         queue: deque[str] = deque([root])
         found: list[dict] = []
@@ -148,7 +160,8 @@ class DbtLineage:
                     if dep not in visited:
                         queue.append(dep)
 
-        return found
+        self._leaves_cache[root] = found
+        return list(found)
 
     def upstream_sources(self, model_name: str) -> list[dict]:
         """Alias for ``upstream_leaves`` for backwards compatibility."""
@@ -408,7 +421,11 @@ class DbtLineage:
         """Return the last successful execute-phase completion time for
         ``model_name`` from ``run_results.json``, or None if not found."""
         from datetime import datetime
-        raw = json.loads(Path(run_results_path).read_text())
+        key = str(run_results_path)
+        raw = self._run_results_cache.get(key)
+        if raw is None:
+            raw = json.loads(Path(run_results_path).read_text())
+            self._run_results_cache[key] = raw
         uid = self._resolve(model_name)
         best: datetime | None = None
         for result in raw.get("results", []):
@@ -432,8 +449,7 @@ class DbtLineage:
         """Accept a short name or full unique_id; return unique_id."""
         if name in self._nodes:
             return name
-        matches = [uid for uid, n in self._nodes.items()
-                   if n.get("name") == name and n.get("resource_type") == "model"]
+        matches = self._model_uids_by_name.get(name, [])
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1:

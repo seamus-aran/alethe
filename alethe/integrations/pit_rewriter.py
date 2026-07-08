@@ -38,11 +38,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from .._models import PitReport, PitStatus
-
-
-class UnachievableQueryError(Exception):
-    """The requested point in time precedes the existence of at least one
-    upstream source; no rewrite can produce an honest answer."""
+from .._models import UnachievableQueryError  # re-export; canonical home is _models
 
 
 @dataclass

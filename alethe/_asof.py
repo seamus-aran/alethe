@@ -41,10 +41,10 @@ Requires: pip install alethe[asof]   (sqlglot + duckdb)
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
-from ._models import Watermark
+from ._models import Watermark, parse_dt
 
 
 @dataclass
@@ -116,8 +116,7 @@ def asof(sql: str, *, tables: dict[str, str | Path],
             "pip install alethe[asof]") from e
     from deltalake import DeltaTable
     from . import watermark as _watermark, pit_report
-    from ._models import PitStatus, VerdictStatus
-    from .integrations.pit_rewriter import UnachievableQueryError
+    from ._models import PitStatus, UnachievableQueryError, VerdictStatus
 
     tree = sqlglot.parse_one(sql, read=dialect)
 
@@ -135,9 +134,7 @@ def asof(sql: str, *, tables: dict[str, str | Path],
         version = tnode.args.get("version")
         if version is None:
             continue
-        ts = datetime.fromisoformat(version.expression.name)
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
+        ts = parse_dt(version.expression.name)
         tnode.set("version", None)          # strip AS OF for local execution
 
         if name in seen_ts:                 # self-join: gate + load once

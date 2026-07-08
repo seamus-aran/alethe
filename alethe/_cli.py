@@ -41,14 +41,8 @@ Usage:
 from __future__ import annotations
 import argparse
 import sys
-from datetime import datetime, timezone
 
-
-def _parse_as_of(raw: str) -> datetime:
-    dt = datetime.fromisoformat(raw)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt
+from ._models import parse_dt as _parse_as_of
 
 
 def check(argv: list[str]) -> int:
@@ -135,11 +129,12 @@ def report(argv: list[str]) -> int:
                         "materialization-snapshot entry")
     args = p.parse_args(argv)
 
-    from . import load_watermarks, record_report
+    from . import Manifest, load_watermarks, record_report
     from .integrations.dbt import DbtLineage
 
     try:
-        chains = load_watermarks(args.watermarks)
+        manifest = Manifest(args.watermarks)   # opened once, reused per model
+        chains = load_watermarks(manifest)
         lineage = DbtLineage(args.dbt_manifest)
     except (ValueError, FileNotFoundError) as e:
         print(f"alethe: error: {e}", file=sys.stderr)
@@ -161,7 +156,7 @@ def report(argv: list[str]) -> int:
             continue
         print(rep)
         if args.record:
-            entry = record_report(rep, args.watermarks)
+            entry = record_report(rep, manifest)
             print(f"recorded materialization-snapshot: seq={entry['seq']} "
                   f"hash={entry['hash']}")
         print()
